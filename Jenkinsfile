@@ -1,6 +1,10 @@
 pipeline {
     agent any
 
+    tools {
+        nodejs 'node18'
+    }
+
     environment {
         IMAGE_MAIN = 'nodemain:v1.0'
         IMAGE_DEV = 'nodedev:v1.0'
