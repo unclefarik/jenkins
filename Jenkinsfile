@@ -2,7 +2,7 @@ pipeline {
     agent any
 
     tools {
-        nodejs 'node18'
+        nodejs 'node'
     }
 
     environment {
@@ -17,15 +17,17 @@ pipeline {
             }
         }
 
-        stage('Install Dependencies') {
+        stage('Build') {
             steps {
-                sh 'npm install'
+                sh 'chmod +x scripts/build.sh'
+                sh './scripts/build.sh'
             }
         }
 
         stage('Test') {
             steps {
-                sh 'npm test'
+                sh 'chmod +x scripts/test.sh'
+                sh './scripts/test.sh'
             }
         }
 
@@ -33,9 +35,11 @@ pipeline {
             steps {
                 script {
                     if (env.BRANCH_NAME == 'main') {
-                        sh 'docker build -t nodemain:v1.0 .'
+                        sh "docker build -t ${IMAGE_MAIN} ."
                     } else if (env.BRANCH_NAME == 'dev') {
-                        sh 'docker build -t nodedev:v1.0 .'
+                        sh "docker build -t ${IMAGE_DEV} ."
+                    } else {
+                        echo "Branch ${env.BRANCH_NAME} not configured for Docker build."
                     }
                 }
             }
