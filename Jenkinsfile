@@ -1,6 +1,7 @@
 pipeline {
     agent any
 
+    // Parameters for manual CD deployment
     parameters {
         choice(name: 'TARGET_ENV', choices: ['main', 'dev'], description: 'Target environment for manual deploy')
         string(name: 'IMAGE_TAG', defaultValue: 'v1.0', description: 'Docker image tag for manual deploy')
@@ -19,12 +20,16 @@ pipeline {
         stage('Determine Branch/Environment') {
             steps {
                 script {
-                    // Use env.BRANCH_NAME if in multibranch pipeline, otherwise use manual TARGET_ENV parameter
-                    BRANCH_TO_USE = env.BRANCH_NAME ?: params.TARGET_ENV
-                    IMAGE_TAG_TO_USE = params.IMAGE_TAG ?: 'v1.0'
+                    // Declare variables with def
+                    def BRANCH_TO_USE = env.BRANCH_NAME ?: params.TARGET_ENV
+                    def IMAGE_TAG_TO_USE = params.IMAGE_TAG ?: 'v1.0'
 
-                    echo "Deploying branch/environment: ${BRANCH_TO_USE}"
-                    echo "Using Docker image tag: ${IMAGE_TAG_TO_USE}"
+                    // Store them in env so they can be used in other stages
+                    env.BRANCH_TO_USE = BRANCH_TO_USE
+                    env.IMAGE_TAG_TO_USE = IMAGE_TAG_TO_USE
+
+                    echo "Deploying branch/environment: ${env.BRANCH_TO_USE}"
+                    echo "Using Docker image tag: ${env.IMAGE_TAG_TO_USE}"
                 }
             }
         }
@@ -52,7 +57,7 @@ pipeline {
         stage('Build Docker Image') {
             steps {
                 script {
-                    def imageName = (BRANCH_TO_USE == 'main') ? "${IMAGE_MAIN}:${IMAGE_TAG_TO_USE}" : "${IMAGE_DEV}:${IMAGE_TAG_TO_USE}"
+                    def imageName = (env.BRANCH_TO_USE == 'main') ? "${IMAGE_MAIN}:${env.IMAGE_TAG_TO_USE}" : "${IMAGE_DEV}:${env.IMAGE_TAG_TO_USE}"
                     sh "docker build -t ${imageName} ."
                 }
             }
@@ -61,29 +66,28 @@ pipeline {
         stage('Deploy') {
             steps {
                 script {
-                    def port = (BRANCH_TO_USE == 'main') ? 3000 : 3001
-                    def container = "${BRANCH_TO_USE}-container-${IMAGE_TAG_TO_USE}"
+                    def port = (env.BRANCH_TO_USE == 'main') ? 3000 : 3001
+                    def imageToRun = (env.BRANCH_TO_USE == 'main') ? "${IMAGE_MAIN}:${env.IMAGE_TAG_TO_USE}" : "${IMAGE_DEV}:${env.IMAGE_TAG_TO_USE}"
+                    def containerName = "${env.BRANCH_TO_USE}-container-${env.IMAGE_TAG_TO_USE}"
 
-                    // Stop & remove old container(s)
+                    // Stop & remove old containers matching branch
                     sh """
-                        docker ps -a --filter "name=${BRANCH_TO_USE}-container" --format "{{.Names}}" | xargs -r docker stop
-                        docker ps -a --filter "name=${BRANCH_TO_USE}-container" --format "{{.Names}}" | xargs -r docker rm
+                        docker ps -a --filter "name=${env.BRANCH_TO_USE}-container" --format "{{.Names}}" | xargs -r docker stop
+                        docker ps -a --filter "name=${env.BRANCH_TO_USE}-container" --format "{{.Names}}" | xargs -r docker rm
                     """
 
-                    // Start new container
-                    sh """
-                        docker run -d --name ${container} --expose ${port} -p ${port}:3000 ${BRANCH_TO_USE}:${IMAGE_TAG_TO_USE}
-                    """
+                    // Run new container
+                    sh "docker run -d --name ${containerName} --expose ${port} -p ${port}:3000 ${imageToRun}"
 
                     echo "App deployed on http://localhost:${port}"
                 }
             }
         }
     }
-    
+
     post {
         always {
-            echo "Pipeline completed for branch/environment: ${BRANCH_TO_USE}"
+            echo "Pipeline completed for branch/environment: ${env.BRANCH_TO_USE}"
         }
     }
 }
