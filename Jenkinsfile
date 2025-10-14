@@ -63,18 +63,12 @@ pipeline {
             steps {
                 script {
                     def port = (BRANCH_TO_USE == 'main') ? 3000 : 3001
-                    def container = "${BRANCH_TO_USE}-container-${IMAGE_TAG_TO_USE}"
+                    def imageToRun = (BRANCH_TO_USE == 'main') ? "${IMAGE_MAIN}:${IMAGE_TAG_TO_USE}" : "${IMAGE_DEV}:${IMAGE_TAG_TO_USE}"
 
-                    // Stop & remove old container(s)
-                    sh """
-                        docker ps -a --filter "name=${BRANCH_TO_USE}-container" --format "{{.Names}}" | xargs -r docker stop
-                        docker ps -a --filter "name=${BRANCH_TO_USE}-container" --format "{{.Names}}" | xargs -r docker rm
-                    """
+                    docker ps -a --filter "name=${BRANCH_TO_USE}-container" --format "{{.Names}}" | xargs -r docker stop
+                    docker ps -a --filter "name=${BRANCH_TO_USE}-container" --format "{{.Names}}" | xargs -r docker rm
 
-                    // Start new container
-                    sh """
-                        docker run -d --name ${container} --expose ${port} -p ${port}:3000 ${BRANCH_TO_USE}:${IMAGE_TAG_TO_USE}
-                    """
+                    sh "docker run -d --name ${BRANCH_TO_USE}-container-${IMAGE_TAG_TO_USE} --expose ${port} -p ${port}:3000 ${imageToRun}"
 
                     echo "App deployed on http://localhost:${port}"
                 }
