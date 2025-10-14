@@ -60,23 +60,24 @@ pipeline {
         }
 
         stage('Deploy') {
-        steps {
-            script {
-                def port = (BRANCH_TO_USE == 'main') ? 3000 : 3001
-                def container = "${BRANCH_TO_USE}-container-${IMAGE_TAG_TO_USE}"
+            steps {
+                script {
+                    def port = (BRANCH_TO_USE == 'main') ? 3000 : 3001
+                    def container = "${BRANCH_TO_USE}-container-${IMAGE_TAG_TO_USE}"
 
-                // Stop & remove old container(s)
-                sh """
-                    docker ps -a --filter "name=${BRANCH_TO_USE}-container" --format "{{.Names}}" | xargs -r docker stop
-                    docker ps -a --filter "name=${BRANCH_TO_USE}-container" --format "{{.Names}}" | xargs -r docker rm
-                """
+                    // Stop & remove old container(s)
+                    sh """
+                        docker ps -a --filter "name=${BRANCH_TO_USE}-container" --format "{{.Names}}" | xargs -r docker stop
+                        docker ps -a --filter "name=${BRANCH_TO_USE}-container" --format "{{.Names}}" | xargs -r docker rm
+                    """
 
-                // Start new container
-                sh """
-                    docker run -d --name ${container} --expose ${port} -p ${port}:3000 ${BRANCH_TO_USE}:${IMAGE_TAG_TO_USE}
-                """
+                    // Start new container
+                    sh """
+                        docker run -d --name ${container} --expose ${port} -p ${port}:3000 ${BRANCH_TO_USE}:${IMAGE_TAG_TO_USE}
+                    """
 
-                echo "App deployed on http://localhost:${port}"
+                    echo "App deployed on http://localhost:${port}"
+                }
             }
         }
     }
