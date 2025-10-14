@@ -79,7 +79,8 @@ pipeline {
                 }
             }
         }
-
+    }
+    
     post {
         always {
             echo "Pipeline completed for branch/environment: ${BRANCH_TO_USE}"
