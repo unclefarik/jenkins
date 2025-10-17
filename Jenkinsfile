@@ -14,7 +14,7 @@ pipeline {
     environment {
         IMAGE_MAIN = 'nodemain'
         IMAGE_DEV  = 'nodedev'
-	DOCKER_REPO = 'unckefarik/node-app'
+	    DOCKER_REPO = 'unckefarik/node-app'
         DOCKER_CREDENTIALS = 'dockerhub-creds'
     }
 
@@ -43,6 +43,7 @@ pipeline {
             steps {
                 checkout scm
             }
+        }
         
 	// ---------- NEW: Hadolint (Dockerfile linter) ----------
         stage('Lint Dockerfile (Hadolint)') {
