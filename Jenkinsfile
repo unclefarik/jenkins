@@ -1,14 +1,15 @@
 pipeline {
-    agent any
+    agent {
+        docker {
+            image 'node:7.8.0-alpine'
+            args '-v /var/run/docker.sock:/var/run/docker.sock'
+        }
+    }
 
     // Parameters for manual CD deployment
     parameters {
         choice(name: 'TARGET_ENV', choices: ['main', 'dev'], description: 'Target environment for manual deploy')
         string(name: 'IMAGE_TAG', defaultValue: 'v1.0', description: 'Docker image tag for manual deploy')
-    }
-
-    tools {
-        nodejs 'node'
     }
 
     environment {
@@ -42,6 +43,20 @@ pipeline {
         stage('Checkout') {
             steps {
                 checkout scm
+            }
+        }
+
+        stage('Build') {
+            steps {
+                sh 'chmod +x scripts/build.sh'
+                sh './scripts/build.sh'
+            }
+        }
+
+        stage('Test') {
+            steps {
+                sh 'chmod +x scripts/test.sh'
+                sh './scripts/test.sh'
             }
         }
         
@@ -85,7 +100,12 @@ pipeline {
                     // run trivy via docker image
                     sh """
                       echo "Running Trivy scan for ${env.IMAGE_NAME_LOCAL} (HIGH/CRITICAL)..."
-                      docker run --rm -v /var/run/docker.sock:/var/run/docker.sock aquasec/trivy:latest image --severity HIGH,CRITICAL ${env.IMAGE_NAME_LOCAL} || true
+                      docker run --rm \
+                      -v $HOME/.cache/trivy:/root/.cache/ \
+                      -v /var/run/docker.sock:/var/run/docker.sock \
+                      aquasec/trivy:latest image \
+                      --exit-code 1 \
+                      --severity HIGH,CRITICAL ${env.IMAGE_NAME_LOCAL} || true
                     """
                 }
             }
@@ -104,25 +124,19 @@ pipeline {
             }
         }
 
-        stage('Deploy') {
+        stage('Trigger Deploy Pipeline') {
             steps {
                 script {
-                    def port = (env.BRANCH_TO_USE == 'main') ? 3000 : 3001
-                    def imageToRun = (env.BRANCH_TO_USE == 'main') ? "${IMAGE_MAIN}:${env.IMAGE_TAG_TO_USE}" : "${IMAGE_DEV}:${env.IMAGE_TAG_TO_USE}"
-                    def containerName = "${env.BRANCH_TO_USE}-container-${env.IMAGE_TAG_TO_USE}"
-
-                    // Stop & remove old containers matching branch
-                    sh """
-                        docker ps -a --filter "name=${env.BRANCH_TO_USE}-container" --format "{{.Names}}" | xargs -r docker stop
-                        docker ps -a --filter "name=${env.BRANCH_TO_USE}-container" --format "{{.Names}}" | xargs -r docker rm
-                    """
-		    // Pull the pushed image from Docker Hub to ensure consistent source
-                    sh "docker pull ${DOCKER_REPO}:${env.DOCKER_TAG_FINAL} || true"
-
-                    // Run new container
-                    sh "docker run -d --name ${containerName} --expose ${port} -p ${port}:3000 ${DOCKER_REPO}:${env.DOCKER_TAG_FINAL}"
-
-                    echo "App deployed on http://localhost:${port}"
+                    echo "Deploying ${DOCKER_REPO}:${env.BRANCH_TO_USE}-${params.IMAGE_TAG}"
+                    if (env.BRANCH_TO_USE == 'main') {
+                        build job: 'Deploy_to_main', parameters: [
+                            string(name: 'IMAGE_TAG', value: env.IMAGE_TAG_TO_USE)
+                        ]
+                    } else if (env.BRANCH_TO_USE == 'dev') {
+                        build job: 'Deploy_to_dev', parameters: [
+                            string(name: 'IMAGE_TAG', value: env.IMAGE_TAG_TO_USE)
+                        ]
+                    }
                 }
             }
         }
@@ -130,6 +144,7 @@ pipeline {
 
     post {
         always {
+            sh 'docker logout https://index.docker.io/v1/ || true'
             echo "Pipeline completed for branch/environment: ${env.BRANCH_TO_USE}"
         }
     }
