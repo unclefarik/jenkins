@@ -42,7 +42,7 @@ pipeline {
 
         stage('Prepare tools') {
             steps {
-                sh 'apk add --no-cache git bash'
+                sh 'apk add --no-cache git bash docker-cli'
             }
         }
 
