@@ -1,4 +1,4 @@
-@Library('jenkins-shared-lib') _
+@Library('cicd-sharedlib') _
 
 pipeline {
     agent {
