@@ -14,7 +14,7 @@ pipeline {
     environment {
         IMAGE_MAIN = 'nodemain'
         IMAGE_DEV  = 'nodedev'
-	    DOCKER_REPO = 'unckefarik/node-app'
+	    DOCKER_REPO = 'unclefarik/node-app'
         DOCKER_CREDENTIALS = 'dockerhub-creds'
     }
 
