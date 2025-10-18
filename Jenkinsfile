@@ -1,3 +1,5 @@
+@Library('cicd-sharedlib') _
+
 pipeline {
     agent {
         docker {
