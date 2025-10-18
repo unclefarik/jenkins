@@ -25,7 +25,16 @@ pipeline {
             steps {
                 script {
                     pipelineUtils.prepareTools()
-                    pipelineUtils.determineBranchEnv()
+
+                    def envData = pipelineUtils.determineBranchEnv(
+                        env.BRANCH_NAME,
+                        params.TARGET_ENV,
+                        params.IMAGE_TAG
+                    )
+
+                    env.BRANCH_TO_USE    = envData.branchToUse
+                    env.IMAGE_TAG_TO_USE = envData.imageTagToUse
+                    env.DOCKER_TAG_FINAL = envData.dockerTagFinal
                 }
             }
         }
@@ -41,18 +50,50 @@ pipeline {
             }
         }
 
-        stage('Push to Docker Hub') {
+        stage('Dockerfile Lint') {
             steps {
                 script {
-                    dockerOps.buildAndPush(DOCKER_REPO, DOCKER_CREDENTIALS, IMAGE_MAIN, IMAGE_DEV)
+                    dockerOps.lintDockerfile()
                 }
             }
         }
 
-        stage('Trigger Deploy Pipeline') {
+        stage('Build Image') {
             steps {
                 script {
-                    dockerOps.triggerDeploy()
+                    def hubTag = dockerOps.buildImage(
+                        DOCKER_REPO,
+                        IMAGE_MAIN,
+                        IMAGE_DEV,
+                        env.BRANCH_TO_USE,
+                        env.IMAGE_TAG_TO_USE,
+                        env.DOCKER_TAG_FINAL
+                    )
+                    env.IMAGE_NAME_HUB = hubTag
+                }
+            }
+        }
+
+        stage('Scan Image') {
+            steps {
+                script {
+                    dockerOps.scanImage(env.IMAGE_NAME_HUB)
+                }
+            }
+        }
+
+        stage('Push Image') {
+            steps {
+                script {
+                    dockerOps.pushImage(DOCKER_CREDENTIALS, env.IMAGE_NAME_HUB)
+                }
+            }
+        }
+
+        stage('Trigger Deploy') {
+            steps {
+                script {
+                    dockerOps.triggerDeploy(env.BRANCH_TO_USE, env.IMAGE_TAG_TO_USE)
                 }
             }
         }
